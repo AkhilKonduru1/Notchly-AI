@@ -258,15 +258,15 @@ struct ChatView: View {
         saveMessages()
 
         Task {
-            await queryHackClubAI(trimmed, placeholderID: placeholderMessage.id)
+            await queryOllama(trimmed, placeholderID: placeholderMessage.id)
         }
     }
 
-    func queryHackClubAI(_ input: String, placeholderID: UUID) async {
-        guard let url = URL(string: "https://ai.hackclub.com/chat/completions") else {
+    func queryOllama(_ input: String, placeholderID: UUID) async {
+        guard let url = URL(string: "http://localhost:11434/api/generate") else {
             await MainActor.run {
                 if let index = messages.firstIndex(where: { $0.id == placeholderID }) {
-                    messages[index] = ChatMessage(text: "Error: Invalid Hack Club AI URL.", isUser: false, isAnimating: false, isDisplayed: true)
+                    messages[index] = ChatMessage(text: "Error: Ollama is not running. Please start Ollama with 'ollama serve'.", isUser: false, isAnimating: false, isDisplayed: true)
                 }
                 saveMessages()
             }
@@ -286,13 +286,15 @@ struct ChatView: View {
             }
         }
 
-        let systemPrompt = "You are a helpful AI assistant. Always use markdown and only markdown to format your reponses."
-        
+        // Convert messages to a single prompt for Ollama
+        let prompt = messagesForAPI.map { "\($0["role"]!): \($0["content"]!)" }.joined(separator: "\n")
+
         let body: [String: Any] = [
-            "messages": [["role": "system", "content": systemPrompt]] + messagesForAPI,
+            "model": "llama2", // Recommended light model
+            "prompt": prompt,
             "stream": false
         ]
-        
+
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.addValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -304,17 +306,8 @@ struct ChatView: View {
                 throw URLError(.cannotParseResponse)
             }
 
-            if let choices = json["choices"] as? [[String: Any]],
-               let firstChoice = choices.first,
-               let messageDict = firstChoice["message"] as? [String: Any],
-               let content = messageDict["content"] as? String {
-
-                let cleanedContent: String
-                if let range = content.range(of: "</think>") {
-                    cleanedContent = String(content[range.upperBound...]).trimmingCharacters(in: .whitespacesAndNewlines)
-                } else {
-                    cleanedContent = content.trimmingCharacters(in: .whitespacesAndNewlines)
-                }
+            if let response = json["response"] as? String {
+                let cleanedContent = response.trimmingCharacters(in: .whitespacesAndNewlines)
 
                 await MainActor.run {
                     if let index = messages.firstIndex(where: { $0.id == placeholderID }) {
