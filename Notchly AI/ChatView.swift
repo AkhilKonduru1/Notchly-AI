@@ -297,7 +297,7 @@ struct ChatView: View {
         }
 
         let body: [String: Any] = [
-            "model": "llama-3.1-70b-versatile",
+            "model": "llama-3.3-70b-versatile",
             "messages": messagesForAPI,
             "temperature": 0.7,
             "max_tokens": 1024
@@ -310,7 +310,17 @@ struct ChatView: View {
 
         do {
             request.httpBody = try JSONSerialization.data(withJSONObject: body)
-            let (data, _) = try await URLSession.shared.data(for: request)
+            let (data, response) = try await URLSession.shared.data(for: request)
+            if let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode != 200 {
+                let errorMsg = "Groq API error: HTTP \(httpResponse.statusCode). Please check your API key and model name."
+                await MainActor.run {
+                    if let index = messages.firstIndex(where: { $0.id == placeholderID }) {
+                        messages[index] = ChatMessage(text: errorMsg, isUser: false, isAnimating: false, isDisplayed: true)
+                    }
+                    saveMessages()
+                }
+                return
+            }
             guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
                 throw URLError(.cannotParseResponse)
             }
