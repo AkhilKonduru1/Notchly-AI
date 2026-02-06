@@ -52,7 +52,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(setupCompleted),
-            name: NSNotification.Name("OllamaSetupCompleted"),
+            name: NSNotification.Name("GroqApiKeySetupCompleted"),
             object: nil
         )
     }
@@ -79,7 +79,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(setupCompleted),
-            name: NSNotification.Name("OllamaSetupCompleted"),
+            name: NSNotification.Name("GroqApiKeySetupCompleted"),
             object: nil
         )
     }
@@ -92,7 +92,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func setupCompleted() {
         // Mark setup as completed
-        UserDefaults.standard.set(true, forKey: "ollamaSetupCompleted")
+        // No need to set a boolean, just rely on API key presence
 
         // Close setup window and show main window
         setupWindow?.close()
@@ -101,6 +101,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         showMainWindow()
 
         // Remove observer
-        NotificationCenter.default.removeObserver(self, name: NSNotification.Name("OllamaSetupCompleted"), object: nil)
+        NotificationCenter.default.removeObserver(self, name: NSNotification.Name("GroqApiKeySetupCompleted"), object: nil)
     }
 }

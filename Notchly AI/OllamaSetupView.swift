@@ -81,7 +81,7 @@ struct OllamaSetupView: View {
                 .padding(.horizontal)
             
             Button("Start Chatting") {
-                NotificationCenter.default.post(name: NSNotification.Name("OllamaSetupCompleted"), object: nil)
+                NotificationCenter.default.post(name: NSNotification.Name("GroqApiKeySetupCompleted"), object: nil)
                 isPresented = false
             }
             .buttonStyle(.borderedProminent)
