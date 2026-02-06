@@ -17,49 +17,44 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var setupWindow: NSWindow?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        // Check if this is first launch or Ollama needs setup
-        if needsOllamaSetup() {
-            showOllamaSetup()
+        // Check if Groq API key is set
+        if needsGroqApiKeySetup() {
+            showGroqApiKeySetup()
         } else {
             showMainWindow()
         }
     }
 
-    private func needsOllamaSetup() -> Bool {
-        // Check if we've completed setup before
-        let hasCompletedSetup = UserDefaults.standard.bool(forKey: "ollamaSetupCompleted")
-        if hasCompletedSetup {
-            return false
-        }
-
-        // Quick check if Ollama is running and has models
-        return !isOllamaReady()
+    private func needsGroqApiKeySetup() -> Bool {
+        guard let apiKey = UserDefaults.standard.string(forKey: "groqApiKey") else { return true }
+        return apiKey.isEmpty
     }
 
-    private func isOllamaReady() -> Bool {
-        // Synchronous check - if this fails, we need setup
-        guard let url = URL(string: "http://localhost:11434/api/tags") else { return false }
+    private func showGroqApiKeySetup() {
+        let setupView = OllamaSetupView(isPresented: .constant(true))
+        let hostingController = NSHostingController(rootView: setupView)
 
-        var request = URLRequest(url: url)
-        request.timeoutInterval = 2
+        setupWindow = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 450, height: 300),
+            styleMask: [.titled, .closable, .fullSizeContentView],
+            backing: .buffered,
+            defer: false
+        )
 
-        let semaphore = DispatchSemaphore(value: 0)
-        var isReady = false
+        setupWindow?.center()
+        setupWindow?.contentView = hostingController.view
+        setupWindow?.title = "Groq API Key Setup"
+        setupWindow?.isReleasedWhenClosed = false
+        setupWindow?.level = .floating
+        setupWindow?.makeKeyAndOrderFront(nil)
 
-        URLSession.shared.dataTask(with: request) { data, response, error in
-            if let httpResponse = response as? HTTPURLResponse,
-               httpResponse.statusCode == 200,
-               let data = data,
-               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-               let models = json["models"] as? [[String: Any]],
-               !models.isEmpty {
-                isReady = true
-            }
-            semaphore.signal()
-        }.resume()
-
-        semaphore.wait()
-        return isReady
+        // Observe when setup is complete
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(setupCompleted),
+            name: NSNotification.Name("OllamaSetupCompleted"),
+            object: nil
+        )
     }
 
     private func showOllamaSetup() {

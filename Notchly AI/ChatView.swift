@@ -258,15 +258,25 @@ struct ChatView: View {
         saveMessages()
 
         Task {
-            await queryOllama(trimmed, placeholderID: placeholderMessage.id)
+            await queryGroq(trimmed, placeholderID: placeholderMessage.id)
         }
     }
 
-    func queryOllama(_ input: String, placeholderID: UUID) async {
-        guard let url = URL(string: "http://localhost:11434/api/generate") else {
+    func queryGroq(_ input: String, placeholderID: UUID) async {
+        guard let apiKey = UserDefaults.standard.string(forKey: "groqApiKey"), !apiKey.isEmpty else {
             await MainActor.run {
                 if let index = messages.firstIndex(where: { $0.id == placeholderID }) {
-                    messages[index] = ChatMessage(text: "Error: Ollama is not running. Please start Ollama with 'ollama serve'.", isUser: false, isAnimating: false, isDisplayed: true)
+                    messages[index] = ChatMessage(text: "Error: Groq API key not found. Please set your API key in settings.", isUser: false, isAnimating: false, isDisplayed: true)
+                }
+                saveMessages()
+            }
+            return
+        }
+        
+        guard let url = URL(string: "https://api.groq.com/openai/v1/chat/completions") else {
+            await MainActor.run {
+                if let index = messages.firstIndex(where: { $0.id == placeholderID }) {
+                    messages[index] = ChatMessage(text: "Error: Invalid API URL.", isUser: false, isAnimating: false, isDisplayed: true)
                 }
                 saveMessages()
             }
@@ -286,18 +296,17 @@ struct ChatView: View {
             }
         }
 
-        // Convert messages to a single prompt for Ollama
-        let prompt = messagesForAPI.map { "\($0["role"]!): \($0["content"]!)" }.joined(separator: "\n")
-
         let body: [String: Any] = [
-            "model": "llama2", // Recommended light model
-            "prompt": prompt,
-            "stream": false
+            "model": "llama-3.1-70b-versatile",
+            "messages": messagesForAPI,
+            "temperature": 0.7,
+            "max_tokens": 1024
         ]
 
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.addValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.addValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
 
         do {
             request.httpBody = try JSONSerialization.data(withJSONObject: body)
@@ -306,7 +315,10 @@ struct ChatView: View {
                 throw URLError(.cannotParseResponse)
             }
 
-            if let response = json["response"] as? String {
+            if let choices = json["choices"] as? [[String: Any]],
+               let firstChoice = choices.first,
+               let message = firstChoice["message"] as? [String: Any],
+               let response = message["content"] as? String {
                 let cleanedContent = response.trimmingCharacters(in: .whitespacesAndNewlines)
 
                 await MainActor.run {
